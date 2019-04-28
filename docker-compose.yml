@@ -1,0 +1,205 @@
+version: '3.6'
+services:
+
+#  user-command:
+#    build: command
+#    hostname: user-command
+#    container_name: user-command
+#    ports:
+#      - "8081:8081"
+#    depends_on:
+#      - mysql
+#    links:
+#      - mysql
+#    networks:
+#      - cdcrx
+#    environment:
+#      JAVA_ARGS: "-Xmx512M -Xms256M"
+#
+#  user-denormalizer:
+#    build: denormalizer
+#    hostname: user-denormalizer
+#    container_name: user-denormalizer
+#    ports:
+#      - "8084:8084"
+#    depends_on:
+#      - kafka
+#      - elasticsearch
+#    links:
+#      - kafka
+#      - elasticsearch
+#    networks:
+#      - cdcrx
+#    environment:
+#      JAVA_ARGS: "-Xmx512M -Xms256M"
+#
+#  user-query:
+#    build: query
+#    hostname: user-query
+#    container_name: user-query
+#    ports:
+#      - "8082:8082"
+#    depends_on:
+#      - elasticsearch
+#    links:
+#      - elasticsearch
+#    networks:
+#      - cdcrx
+#    environment:
+#      JAVA_ARGS: "-Xmx512M -Xms256M"
+
+
+#  kafka-reactor:
+##    build: kafka-reactive-sample/kafka-reactor
+#    image: kafka-reactive-sample/kafka-reactor:1.0
+#    hostname: kafka-reactor
+#    container_name: kafka-reactor
+#    ports:
+#      - "8084:8084"
+#    depends_on:
+#      - kafka
+#    links:
+#      - kafka
+#    networks:
+#      - cdcrx
+#    environment:
+#      JAVA_ARGS: "-Xmx512M -Xms256M"
+  mysql:
+    build: mysql
+    hostname: mysql
+    container_name: mysql
+    ports:
+      - "3306:3306"
+    networks:
+      - cdcrx
+    environment:
+      - MYSQL_DATABASE=cdc
+      - MYSQL_ROOT_PASSWORD=root
+      - MYSQL_USER=cdc_user
+      - MYSQL_PASSWORD=cdc_pass
+
+#  elasticsearch:
+#    image: docker.elastic.co/elasticsearch/elasticsearch:5.6.9
+#    hostname: elasticsearch
+#    container_name: elasticsearch
+#    ports:
+#      - "9200:9200"
+#      - "9300:9300"
+#    networks:
+#      - cdcrx
+#    environment:
+#      - cluster.name=es-cluster
+#      - bootstrap.memory_lock=true
+#      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+#      - discovery.type=single-node
+#      - xpack.security.enabled=false
+#    ulimits:
+#      memlock:
+#        soft: -1
+#        hard: -1
+
+  zookeeper:
+    image: confluentinc/cp-zookeeper:5.0.0
+    hostname: zookeeper
+    container_name: zookeeper
+    ports:
+      - "32181:32181"
+    networks:
+      - cdcrx
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 32181
+      ZOOKEEPER_TICK_TIME: 2000
+
+  kafka:
+    image: confluentinc/cp-kafka:5.0.0
+    hostname: kafka
+    container_name: kafka
+    depends_on:
+      - zookeeper
+    ports:
+      - "9092:9092"
+      - "29092:29092"
+    links:
+      - zookeeper
+    networks:
+      - cdcrx
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:32181
+      ALLOW_PLAINTEXT_LISTENER: "yes"
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_LISTENERS: PLAINTEXT://:29092,PLAINTEXT_HOST://:9092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
+#      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+
+
+  kafka-connect:
+#    image: confluentinc/cp-kafka-connect:5.0.0
+    build: connect
+    hostname: kafka-connect
+    container_name: kafka-connect
+    links:
+      - zookeeper
+      - kafka
+      - schema-registry
+      - mysql
+    ports:
+      - '8083:8083'
+    networks:
+      - cdcrx
+    environment:
+      CONNECT_BOOTSTRAP_SERVERS: 'kafka:29092'
+      CONNECT_ZOOKEEPER_CONNECT: 'zookeeper:32181'
+      CONNECT_GROUP_ID: compose-connect-group
+      CONNECT_CONFIG_STORAGE_TOPIC: kafka-connect-configs
+      CONNECT_CONFIG_STORAGE_REPLICATION_FACTOR: 1
+      CONNECT_OFFSET_FLUSH_INTERVAL_MS: 10000
+      CONNECT_OFFSET_STORAGE_TOPIC: kafka-connect-offsets
+      CONNECT_OFFSET_STORAGE_REPLICATION_FACTOR: 1
+      CONNECT_STATUS_STORAGE_TOPIC: kafka-connect-status
+      CONNECT_STATUS_STORAGE_REPLICATION_FACTOR: 1
+      CONNECT_KEY_CONVERTER: org.apache.kafka.connect.storage.StringConverter
+      CONNECT_KEY_CONVERTER_SCHEMA_REGISTRY_URL: 'http://schema-registry:8081'
+      CONNECT_VALUE_CONVERTER: io.confluent.connect.avro.AvroConverter
+      CONNECT_VALUE_CONVERTER_SCHEMA_REGISTRY_URL: 'http://schema-registry:8081'
+      CONNECT_INTERNAL_KEY_CONVERTER: org.apache.kafka.connect.json.JsonConverter
+      CONNECT_INTERNAL_VALUE_CONVERTER: org.apache.kafka.connect.json.JsonConverter
+      CONNECT_LOG4J_LOGGERS: org.apache.zookeeper=ERROR,org.I0Itec.zkclient=ERROR,org.reflections=ERROR
+      CONNECT_PLUGIN_PATH: '/usr/share/java,/usr/local/share/jars'
+      CONNECT_REST_HOST_NAME: 0.0.0.0
+      CONNECT_REST_ADVERTISED_HOST_NAME: kafka-connect
+      CONNECT_REST_PORT: 8083
+
+  schema-registry:
+    image: confluentinc/cp-schema-registry:5.0.0
+    hostname: schema-registry
+    container_name: schema-registry
+    depends_on:
+      - zookeeper
+      - kafka
+    ports:
+      - "8081:8081"
+    networks:
+      - cdcrx
+    environment:
+      SCHEMA_REGISTRY_HOST_NAME: schema-registry
+      SCHEMA_REGISTRY_KAFKASTORE_CONNECTION_URL: 'zookeeper:32181'
+
+  kafka-manager:
+    image: sheepkiller/kafka-manager
+    ports:
+      - "29000:9000"
+    environment:
+      ZK_HOSTS: zookeeper:32181
+    networks:
+      - cdcrx
+    links:
+      - zookeeper
+    depends_on:
+      - kafka
+
+
+networks:
+  cdcrx:
+    driver: "bridge"

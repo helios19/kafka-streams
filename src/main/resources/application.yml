@@ -1,0 +1,122 @@
+spring:
+  kafka:
+#    bootstrap-servers: http://kafka:29092
+    bootstrap-servers: http://localhost:9092
+    consumer:
+      enable-auto-commit: false
+      auto-offset-reset: earliest
+      client-id: kafka-samples-client
+      group-id: kafka-stream-sample
+#      properties:
+#        isolation.level: read_committed
+    properties: # for KafkaAvroDeserializer
+#      schema.registry.url: http://schema-registry:8081
+      schema.registry.url: http://localhost:8081
+      specific.avro.reader: true
+  profiles:
+    active: development
+
+  cloud:
+    stream:
+      schema:
+        avro:
+          dynamicSchemaGenerationEnabled: true
+      default:
+        contentType: application/*+avro
+      bindings:
+        input:
+          destination: mysqlcdc.test.RawTransaction
+          group: kafka-stream-sample
+          content-type: application/*+avro
+#          content-type: application/mysqlcdc.test.RawTransaction.Envelope
+#          contentType: application/mysqlcdc.test.RawTransaction.Envelope.v1+avro
+      kafka:
+        bindings:
+          input:
+            consumer:
+              resetOffsets: true
+        binder:
+          brokers: http://localhost:9092
+          zkNodes: http://localhost:32181
+          serializer: io.confluent.kafka.serializers.KafkaAvroSerializer
+          deserializer: io.confluent.kafka.serializers.KafkaAvroDeserializer
+          configuration:
+#            key.serializer: io.confluent.kafka.streams.serdes.avro.SpecificAvroSerializer
+#            value.serializer: io.confluent.kafka.streams.serdes.avro.SpecificAvroSerializer
+            key.serializer: org.apache.kafka.common.serialization.StringDeserializer
+            value.serializer: io.confluent.kafka.serializers.KafkaAvroSerializer
+            schema.registry.url: http://localhost:8081
+        streams:
+          bindings.input-streams.consumer.application-id: kafka-stream-sample
+
+
+      schemaRegistryClient:
+        endpoint: http://localhost:8081
+      schema.avro.shemaLocations: classpath*:avro/mysqlcdc.test.RawTransaction.avsc
+
+#spring.cloud.stream.kafka.streams:
+#  binder.configuration:
+#    default.key.serde: org.apache.kafka.common.serialization.Serdes$StringSerde
+#    default.value.serde: org.apache.kafka.common.serialization.Serdes$StringSerde
+#  bindings.kstreamIn.consumer.application-id: kafka-streams-to-rabbitmq
+
+
+
+topics:
+  example-data: example-data-topic
+  retry-data: retry-topic
+  raw-transaction-data: mysqlcdc.test.RawTransaction
+
+
+
+logging:
+  level:
+    ROOT: DEBUG
+    com.ing.cloud.stream: DEBUG
+    org.springframework.messaging: TRACE
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: "*"
+  security:
+    enable: true
+  health:
+    show-details: ALWAYS
+    binders:
+       enabled: true
+
+
+
+
+#spring.cloud.stream.bindings.input.destination=timerTopic
+#spring.cloud.stream.bindings.input.content-type=application/json
+#spring.cloud.stream.bindings.input.group=timerGroup
+#spring.cloud.stream.kafka.bindings.input.consumer.resetOffsets=true
+
+#server.port=8081
+#spring.cloud.stream.bindings.input.destination=timerTopicLocal
+#spring.cloud.stream.kafka.binder.zkNodes=192.168.99.100
+#spring.cloud.stream.kafka.binder.brokers=192.168.99.100
+
+
+
+
+
+#spring.cloud.stream.bindings.output.contentType: application/json
+#spring.cloud.stream.kafka.streams.binder.configuration.commit.interval.ms: 1000
+#spring.cloud.stream.kafka.streams:
+#  binder.configuration:
+#    default.key.serde: org.apache.kafka.common.serialization.Serdes$StringSerde
+#    default.value.serde: org.apache.kafka.common.serialization.Serdes$StringSerde
+#  bindings.input.consumer.application-id: basic-word-count
+#spring.cloud.stream.bindings.output:
+#  destination: counts
+#spring.cloud.stream.bindings.input:
+#  destination: words
+##For testing
+#spring.cloud.stream.bindings.input1.destination: counts
+#spring.cloud.stream.bindings.output1.destination: words
+#spring.cloud.stream.bindings.input1.binder: kafka
+#spring.cloud.stream.bindings.output1.binder: kafka
